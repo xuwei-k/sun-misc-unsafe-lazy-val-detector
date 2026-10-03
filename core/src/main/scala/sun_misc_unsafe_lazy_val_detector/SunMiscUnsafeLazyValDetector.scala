@@ -43,6 +43,7 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
     sunMiscUnsafeLazyValDetectDirectUnsafe := true,
     sunMiscUnsafeLazyValDetectAll := Def.taskDyn {
       implicit val converter: xsbti.FileConverter = fileConverter.value
+      val log = state.value.log
       buildStructure.value.allProjects
         .filter(_.autoPlugins.contains(SunMiscUnsafeLazyValDetector))
         .flatMap(x =>
@@ -52,12 +53,16 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
         )
         .join
         .map(
-          _.flatten.distinct.map { lib =>
+          _.flatten.distinct.flatMap { lib =>
             val path = PluginCompat.toFile(lib)
-            val moduleId = PluginCompat.parseModuleIDStrAttribute(
-              lib.get(PluginCompat.moduleIDStr).getOrElse(sys.error(s"not found moduleId ${path}"))
-            )
-            (moduleId, path, lib.data)
+            lib
+              .get(PluginCompat.moduleIDStr)
+              .map(PluginCompat.parseModuleIDStrAttribute)
+              .map(moduleId => (moduleId, path, lib.data))
+              .orElse {
+                log.warn(s"not found moduleId ${path}")
+                None
+              }
           }.groupBy(_._1)
             .map { case (_, v) => v.head }
             .toSeq
@@ -117,14 +122,11 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
         x / sunMiscUnsafeLazyValDetect := {
           val all = sunMiscUnsafeLazyValDetectAll.value
           (x / externalDependencyClasspath).value.flatMap { lib =>
-            implicit val converter: xsbti.FileConverter = fileConverter.value
-            val path = PluginCompat.toFile(lib)
-            val moduleId = PluginCompat.parseModuleIDStrAttribute(
-              lib.get(PluginCompat.moduleIDStr).getOrElse(sys.error(s"not found moduleId ${path}"))
-            )
-            all.find(x =>
-              (x.groupId == moduleId.organization) && (x.artifactId == moduleId.name) && (x.version == moduleId.revision)
-            )
+            lib.get(PluginCompat.moduleIDStr).map(PluginCompat.parseModuleIDStrAttribute).flatMap { moduleId =>
+              all.find(x =>
+                (x.groupId == moduleId.organization) && (x.artifactId == moduleId.name) && (x.version == moduleId.revision)
+              )
+            }
           }.sorted
         }
       )
