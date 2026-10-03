@@ -5,8 +5,8 @@ trait SunMiscUnsafeLazyValDetectorCompat { self: SunMiscUnsafeLazyValDetector.ty
     new SunMiscUnsafeLazyValDetectorCache[String]
 
   final private[sun_misc_unsafe_lazy_val_detector] def getOrElseUpdateCache(
-    key: java.io.File,
+    key: SunMiscUnsafeLazyValDetectorCache.Key[java.io.File],
     computeValue: () => List[(String, Int)]
   ): List[(String, Int)] =
-    cache.getOrElseUpdateCache(key.getCanonicalPath, computeValue)
+    cache.getOrElseUpdateCache(key.map(_.getCanonicalPath), computeValue)
 }

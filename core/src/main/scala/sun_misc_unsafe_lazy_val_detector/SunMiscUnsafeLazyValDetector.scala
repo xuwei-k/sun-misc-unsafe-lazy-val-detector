@@ -65,9 +65,10 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
               if ((moduleId.organization == scalaOrganization.value) && (moduleId.name == "scala-library")) {
                 Nil
               } else {
+                val directUnsafe = sunMiscUnsafeLazyValDetectDirectUnsafe.value
                 val lazyVals = getOrElseUpdateCache(
-                  lib,
-                  () => oldLazyValAndUnsafe(path, sunMiscUnsafeLazyValDetectDirectUnsafe.value)
+                  SunMiscUnsafeLazyValDetectorCache.Key(lib, directUnsafe),
+                  () => oldLazyValAndUnsafe(path, directUnsafe)
                 )
                 if (lazyVals.nonEmpty) {
                   Seq(

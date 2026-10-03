@@ -5,7 +5,7 @@ trait SunMiscUnsafeLazyValDetectorCompat { self: SunMiscUnsafeLazyValDetector.ty
     new SunMiscUnsafeLazyValDetectorCache[xsbti.HashedVirtualFileRef]
 
   final private[sun_misc_unsafe_lazy_val_detector] def getOrElseUpdateCache(
-    key: xsbti.HashedVirtualFileRef,
+    key: SunMiscUnsafeLazyValDetectorCache.Key[xsbti.HashedVirtualFileRef],
     computeValue: () => List[(String, Int)]
   ): List[(String, Int)] =
     cache.getOrElseUpdateCache(key, computeValue)
