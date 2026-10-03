@@ -9,7 +9,7 @@ val sbt2version: String = {
 val Scala212 = scala_version_from_sbt_version.ScalaVersionFromSbtVersion(sbt1version)
 val Scala3 = scala_version_from_sbt_version.ScalaVersionFromSbtVersion(sbt2version)
 
-val sumMiscUnsafeLazyValDetectorRoot =
+val sunMiscUnsafeLazyValDetectorRoot =
   rootProject.autoAggregate.settings(
     autoScalaLibrary := false,
     publish / skip := true
