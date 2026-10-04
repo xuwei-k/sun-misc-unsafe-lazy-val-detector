@@ -17,6 +17,7 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
   object autoImport {
     val sunMiscUnsafeLazyValDetect = taskKey[Seq[SunMiscUnsafeLazyValValue]]("")
     val sunMiscUnsafeLazyValDetectAll = taskKey[Seq[SunMiscUnsafeLazyValValue]]("")
+    val sunMiscUnsafeLazyValDetectAllExternalDependencies = taskKey[Seq[Classpath]]("").withRank(KeyRanks.Invisible)
     @transient
     val sunMiscUnsafeLazyValDetectAllPrint = taskKey[Unit]("")
     @transient
@@ -41,58 +42,57 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
       cache.cache.clear()
     },
     sunMiscUnsafeLazyValDetectDirectUnsafe := true,
-    sunMiscUnsafeLazyValDetectAll := Def.taskDyn {
-      implicit val converter: xsbti.FileConverter = fileConverter.value
-      val log = state.value.log
-      buildStructure.value.allProjects
-        .filter(_.autoPlugins.contains(SunMiscUnsafeLazyValDetector))
-        .flatMap(x =>
+    sunMiscUnsafeLazyValDetectAllExternalDependencies := Def.taskDyn {
+      buildStructure.value.allProjectPairs
+        .filter(_._1.autoPlugins.contains(SunMiscUnsafeLazyValDetector))
+        .flatMap { case (_, x) =>
           allConfig.map { c =>
-            LocalProject(x.id) / c / externalDependencyClasspath
+            x / c / externalDependencyClasspath
           }
-        )
+        }
         .join
-        .map(
-          _.flatten.distinct.flatMap { lib =>
-            val path = PluginCompat.toFile(lib)
-            lib
-              .get(PluginCompat.moduleIDStr)
-              .map(PluginCompat.parseModuleIDStrAttribute)
-              .map(moduleId => (moduleId, path, lib.data))
-              .orElse {
-                log.warn(s"not found moduleId ${path}")
-                None
-              }
-          }.groupBy(_._1)
-            .map { case (_, v) => v.head }
-            .toSeq
-            .flatMap { case (moduleId, path, lib) =>
-              if ((moduleId.organization == scalaOrganization.value) && (moduleId.name == "scala-library")) {
-                Nil
-              } else {
-                val directUnsafe = sunMiscUnsafeLazyValDetectDirectUnsafe.value
-                val lazyVals = getOrElseUpdateCache(
-                  SunMiscUnsafeLazyValDetectorCache.Key(lib, directUnsafe),
-                  () => oldLazyValAndUnsafe(path, directUnsafe)
-                )
-                if (lazyVals.nonEmpty) {
-                  Seq(
-                    SunMiscUnsafeLazyValValue(
-                      moduleId.organization,
-                      moduleId.name,
-                      moduleId.revision,
-                      lib,
-                      lazyVals,
-                    )
-                  )
-                } else {
-                  Nil
-                }
-              }
-            }
-            .sorted
-        )
     }.value,
+    sunMiscUnsafeLazyValDetectAll := {
+      implicit val converter: xsbti.FileConverter = fileConverter.value
+      sunMiscUnsafeLazyValDetectAllExternalDependencies.value.flatten.distinct.flatMap { lib =>
+        val path = PluginCompat.toFile(lib)
+        lib
+          .get(PluginCompat.moduleIDStr)
+          .map(PluginCompat.parseModuleIDStrAttribute)
+          .map(moduleId => (moduleId, path, lib.data))
+          .orElse {
+            println(s"not found moduleId ${path}")
+            None
+          }
+      }.groupBy(_._1)
+        .map { case (_, v) => v.head }
+        .toSeq
+        .flatMap { case (moduleId, path, lib) =>
+          if ((moduleId.organization == scalaOrganization.value) && (moduleId.name == "scala-library")) {
+            Nil
+          } else {
+            val directUnsafe = sunMiscUnsafeLazyValDetectDirectUnsafe.value
+            val lazyVals = getOrElseUpdateCache(
+              SunMiscUnsafeLazyValDetectorCache.Key(lib, directUnsafe),
+              () => oldLazyValAndUnsafe(path, directUnsafe)
+            )
+            if (lazyVals.nonEmpty) {
+              Seq(
+                SunMiscUnsafeLazyValValue(
+                  moduleId.organization,
+                  moduleId.name,
+                  moduleId.revision,
+                  lib,
+                  lazyVals,
+                )
+              )
+            } else {
+              Nil
+            }
+          }
+        }
+        .sorted
+    },
     sunMiscUnsafeLazyValDetectAllPrint := printValues(sunMiscUnsafeLazyValDetectAll).value,
   )
 
