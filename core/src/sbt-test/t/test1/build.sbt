@@ -2,17 +2,22 @@ val common = Def.settings(
   scalaVersion := "3.9.0"
 )
 
-val check = inputKey[Unit]("")
+@transient
+val check = taskKey[Unit]("")
+@transient
+val check2 = taskKey[Unit]("")
 
 val a1 = project.settings(
   common,
+  libraryDependencies += "io.netty" % "netty-common" % "4.2.18.Final",
   libraryDependencies += "org.typelevel" %% "cats-core" % "2.13.0",
   libraryDependencies += "org.scalatest" %% "scalatest-core" % "3.2.20" % Test,
   check := {
-    assert((Compile / sunMiscUnsafeLazyValDetect).value.map(_.classNames) == Seq(catsValue))
-    assert((Runtime / sunMiscUnsafeLazyValDetect).value.map(_.classNames) == Seq(catsValue))
+    assert((Compile / sunMiscUnsafeLazyValDetect).value.map(_.classNames).toSet == Set(catsValue, nettyValue))
+    assert((Runtime / sunMiscUnsafeLazyValDetect).value.map(_.classNames).toSet == Set(catsValue, nettyValue))
     assert(
       (Test / sunMiscUnsafeLazyValDetect).value.map(_.classNames).toSet == Set(
+        nettyValue,
         catsValue,
         scalacticValue,
         scalatestCoreValue,
@@ -37,10 +42,27 @@ val root = project
   .aggregate(a1, a2)
   .settings(
     common,
+    check2 := {
+      val actual = sunMiscUnsafeLazyValDetectAll.value.map(x => (x.groupId, x.artifactId))
+      assert(
+        actual == Seq(
+          ("com.github.scopt", "scopt_3"),
+          ("org.scala-lang.modules", "scala-xml_3"),
+          ("org.scalactic", "scalactic_3"),
+          ("org.scalatest", "scalatest-core_3"),
+          ("org.typelevel", "cats-core_3"),
+        ),
+        actual
+      )
+    },
     check := {
       val actual = sunMiscUnsafeLazyValDetectAll.value
-      assert(actual.size == 5)
+      assert(actual.size == 6)
       val map = actual.map(x => (x.groupId, x.artifactId) -> x.classNames).toMap
+      assert(
+        map(("io.netty", "netty-common")) == nettyValue,
+        actual
+      )
       assert(
         map(("com.github.scopt", "scopt_3")) == scoptValue,
         actual
@@ -172,4 +194,28 @@ val scoptValue = Seq(
   ("scopt/OParser$.class", 10),
   ("scopt/OParser.class", 1),
   ("scopt/OptionParser.class", 6)
+)
+
+val nettyValue = Seq(
+  ("io/netty/util/internal/PlatformDependent0$2.class", 3),
+  ("io/netty/util/internal/PlatformDependent0$3.class", 2),
+  ("io/netty/util/internal/PlatformDependent0$5.class", 6),
+  ("io/netty/util/internal/PlatformDependent0.class", 79),
+  ("io/netty/util/internal/shaded/org/jctools/queues/BaseLinkedQueueConsumerNodeRef.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/queues/BaseLinkedQueueProducerNodeRef.class", 3),
+  ("io/netty/util/internal/shaded/org/jctools/queues/BaseMpscLinkedArrayQueueColdProducerFields.class", 2),
+  ("io/netty/util/internal/shaded/org/jctools/queues/BaseMpscLinkedArrayQueueConsumerFields.class", 2),
+  ("io/netty/util/internal/shaded/org/jctools/queues/BaseMpscLinkedArrayQueueProducerFields.class", 2),
+  ("io/netty/util/internal/shaded/org/jctools/queues/LinkedQueueNode.class", 2),
+  ("io/netty/util/internal/shaded/org/jctools/queues/MpmcArrayQueueConsumerIndexField.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/queues/MpmcArrayQueueProducerIndexField.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/queues/MpscArrayQueueConsumerIndexField.class", 2),
+  ("io/netty/util/internal/shaded/org/jctools/queues/MpscArrayQueueProducerIndexField.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/queues/MpscArrayQueueProducerLimitField.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/queues/unpadded/MpscUnpaddedArrayQueueConsumerIndexField.class", 2),
+  ("io/netty/util/internal/shaded/org/jctools/queues/unpadded/MpscUnpaddedArrayQueueProducerIndexField.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/queues/unpadded/MpscUnpaddedArrayQueueProducerLimitField.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/util/UnsafeAccess.class", 1),
+  ("io/netty/util/internal/shaded/org/jctools/util/UnsafeLongArrayAccess.class", 6),
+  ("io/netty/util/internal/shaded/org/jctools/util/UnsafeRefArrayAccess.class", 6),
 )

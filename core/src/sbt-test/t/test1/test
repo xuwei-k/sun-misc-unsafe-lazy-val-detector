@@ -1,5 +1,8 @@
 > sunMiscUnsafeLazyValDetectAllPrint
 > check
+> set ThisBuild / sunMiscUnsafeLazyValDetectDirectUnsafe := false
+-> check
+> check2
 > reload plugins
 > sunMiscUnsafeLazyValDetectAllPrint
 > check
