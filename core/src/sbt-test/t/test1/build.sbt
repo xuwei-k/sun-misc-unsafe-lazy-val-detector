@@ -1,122 +1,175 @@
-scalaVersion := "3.9.0"
+val common = Def.settings(
+  scalaVersion := "3.9.0"
+)
 
-libraryDependencies += "org.typelevel" %% "cats-core" % "2.13.0"
-libraryDependencies += "org.scalatest" %% "scalatest-core" % "3.2.20" % Test
+val check = inputKey[Unit]("")
 
-InputKey[Unit]("check") := {
-  val actual = sunMiscUnsafeLazyValDetectAll.value
-  assert(actual.size == 4)
-  val map = actual.map(x => (x.groupId, x.artifactId) -> x.classNames).toMap
-  assert(
-    map(("org.typelevel", "cats-core_3")) == Seq(
-      ("cats/EvalInstances$$anon$10.class", 7),
-      ("cats/EvalInstances0$$anon$11.class", 7),
-      ("cats/Later.class", 7),
-      ("cats/data/ContT$DeferCont.class", 7),
-      ("cats/data/IorInstances$$anon$6.class", 7),
-      ("cats/data/IorTInstances$$anon$5.class", 7),
-      ("cats/data/IorTInstances$$anon$9.class", 7),
-      ("cats/data/IorTInstances1$$anon$17.class", 7),
-      ("cats/data/RepresentableStore.class", 14),
-      ("cats/instances/EqInstances$$anon$3$Deferred.class", 7),
-      ("cats/instances/EquivInstances$$anon$5$Deferred.class", 7),
-      ("cats/instances/FunctionInstancesBinCompat0$$anon$1$Deferred.class", 7),
-      ("cats/instances/FunctionInstancesBinCompat0$$anon$3$Deferred.class", 7),
-      ("cats/instances/HashInstances$$anon$2$Deferred.class", 7),
-      ("cats/instances/OrderInstances$$anon$3$Deferred.class", 7),
-      ("cats/instances/OrderingInstances$$anon$3$Deferred.class", 7),
-      ("cats/instances/PartialOrderInstances$$anon$3$Deferred.class", 7),
-      ("cats/instances/PartialOrderingInstances$$anon$4$Deferred.class", 7),
-      ("cats/instances/ShowInstances$$anon$1$Deferred.class", 7),
-    ),
-    actual
+val a1 = project.settings(
+  common,
+  libraryDependencies += "org.typelevel" %% "cats-core" % "2.13.0",
+  libraryDependencies += "org.scalatest" %% "scalatest-core" % "3.2.20" % Test,
+  check := {
+    assert((Compile / sunMiscUnsafeLazyValDetect).value.map(_.classNames) == Seq(catsValue))
+    assert((Runtime / sunMiscUnsafeLazyValDetect).value.map(_.classNames) == Seq(catsValue))
+    assert(
+      (Test / sunMiscUnsafeLazyValDetect).value.map(_.classNames).toSet == Set(
+        catsValue,
+        scalacticValue,
+        scalatestCoreValue,
+        scalaXmlValue
+      )
+    )
+  }
+)
+
+val a2 = project.settings(
+  common,
+  libraryDependencies += "com.github.scopt" %% "scopt" % "4.1.0" % Runtime,
+  check := {
+    assert((Compile / sunMiscUnsafeLazyValDetect).value.isEmpty)
+    assert((Runtime / sunMiscUnsafeLazyValDetect).value.map(_.classNames) == Seq(scoptValue))
+    assert((Test / sunMiscUnsafeLazyValDetect).value.map(_.classNames) == Seq(scoptValue))
+  },
+)
+
+val root = project
+  .in(file("."))
+  .aggregate(a1, a2)
+  .settings(
+    common,
+    check := {
+      val actual = sunMiscUnsafeLazyValDetectAll.value
+      assert(actual.size == 5)
+      val map = actual.map(x => (x.groupId, x.artifactId) -> x.classNames).toMap
+      assert(
+        map(("com.github.scopt", "scopt_3")) == scoptValue,
+        actual
+      )
+      assert(
+        map(("org.typelevel", "cats-core_3")) == catsValue,
+        actual
+      )
+      assert(
+        map(("org.scalatest", "scalatest-core_3")) == scalatestCoreValue,
+        actual
+      )
+      assert(
+        map(("org.scalactic", "scalactic_3")) == scalacticValue,
+        actual
+      )
+      assert(
+        map(("org.scala-lang.modules", "scala-xml_3")) == scalaXmlValue,
+        actual
+      )
+    }
   )
-  assert(
-    map(("org.scalatest", "scalatest-core_3")) == Seq(
-      ("org/scalatest/Assertions$.class", 5),
-      ("org/scalatest/Assertions.class", 1),
-      ("org/scalatest/AsyncSuperEngine.class", 11),
-      ("org/scalatest/ConfigMapWrapperSuite.class", 11),
-      ("org/scalatest/DeferredAbortedSuite.class", 6),
-      ("org/scalatest/DispatchReporter.class", 6),
-      ("org/scalatest/DocSpec.class", 16),
-      ("org/scalatest/NonImplicitAssertions$.class", 5),
-      ("org/scalatest/NonImplicitAssertions.class", 1),
-      ("org/scalatest/PrivateMethodTester$.class", 5),
-      ("org/scalatest/PrivateMethodTester.class", 1),
-      ("org/scalatest/Resources$.class", 6),
-      ("org/scalatest/Sequential.class", 6),
-      ("org/scalatest/ShellImpl.class", 46),
-      ("org/scalatest/Stepwise.class", 6),
-      ("org/scalatest/Suites.class", 6),
-      ("org/scalatest/SuperEngine.class", 11),
-      ("org/scalatest/concurrent/AbstractPatienceConfiguration$.class", 5),
-      ("org/scalatest/concurrent/AbstractPatienceConfiguration.class", 1),
-      ("org/scalatest/concurrent/Conductors$Conductor.class", 16),
-      ("org/scalatest/concurrent/Eventually$.class", 5),
-      ("org/scalatest/concurrent/Eventually.class", 1),
-      ("org/scalatest/concurrent/Futures$.class", 5),
-      ("org/scalatest/concurrent/Futures.class", 1),
-      ("org/scalatest/concurrent/ScalaFutures$.class", 5),
-      ("org/scalatest/concurrent/ScalaFutures.class", 1),
-      ("org/scalatest/concurrent/Waiters$.class", 10),
-      ("org/scalatest/concurrent/Waiters.class", 1),
-      ("org/scalatest/events/Event.class", 11),
-      ("org/scalatest/exceptions/StackDepthException.class", 21),
-      ("org/scalatest/package$.class", 46),
-      ("org/scalatest/prop/Configuration$.class", 40),
-      ("org/scalatest/prop/Configuration$Parameter.class", 6),
-      ("org/scalatest/prop/Configuration.class", 1),
-      ("org/scalatest/prop/TableDrivenPropertyChecks$.class", 5),
-      ("org/scalatest/prop/TableDrivenPropertyChecks.class", 1),
-      ("org/scalatest/prop/Tables$.class", 5),
-      ("org/scalatest/prop/Tables.class", 1),
-      ("org/scalatest/time/Span.class", 16),
-      ("org/scalatest/tools/DashboardReporter$TestRecord.class", 6),
-      ("org/scalatest/tools/DiscoverySuite.class", 6),
-      ("org/scalatest/tools/DistributedTestRunnerSuite.class", 6),
-      ("org/scalatest/tools/Framework$ScalaTestTask.class", 21),
-      ("org/scalatest/tools/Framework$Skeleton$1.class", 11),
-      ("org/scalatest/tools/IconEmbellishedListCellRenderer.class", 6),
-      ("org/scalatest/tools/JUnitXmlReporter.class", 6),
-      ("org/scalatest/tools/PrettyPrinter.class", 6),
-      ("org/scalatest/tools/ScalaTestFramework.class", 6),
-      ("org/scalatest/tools/SuiteParam.class", 6),
-    ),
-    actual
-  )
-  assert(
-    map(("org.scalactic", "scalactic_3")) == Seq(
-      ("org/scalactic/AndBool.class", 11),
-      ("org/scalactic/BinaryMacroBool.class", 11),
-      ("org/scalactic/ExistsMacroBool.class", 6),
-      ("org/scalactic/IsInstanceOfMacroBool.class", 6),
-      ("org/scalactic/LengthSizeMacroBool.class", 6),
-      ("org/scalactic/NotBool.class", 6),
-      ("org/scalactic/OrBool.class", 11),
-      ("org/scalactic/Resources$.class", 6),
-      ("org/scalactic/SimpleBool.class", 6),
-      ("org/scalactic/SimpleMacroBool.class", 6),
-      ("org/scalactic/UnaryMacroBool.class", 6),
-      ("org/scalactic/source/ObjectMeta$$anon$1.class", 11),
-      ("org/scalactic/source/Position$.class", 5),
-      ("org/scalactic/source/Position.class", 1),
-    ),
-    actual
-  )
-  assert(
-    map(("org.scala-lang.modules", "scala-xml_3")) == Seq(
-      ("scala/xml/PrettyPrinter.class", 6),
-      ("scala/xml/XML$$anon$1.class", 6),
-      ("scala/xml/XML$.class", 6),
-      ("scala/xml/dtd/DFAContentModel.class", 6),
-      ("scala/xml/dtd/impl/Base$Eps$.class", 6),
-      ("scala/xml/dtd/impl/Base$Star.class", 6),
-      ("scala/xml/dtd/impl/Base.class", 16),
-      ("scala/xml/dtd/impl/WordExp$Letter.class", 6),
-      ("scala/xml/dtd/impl/WordExp$Wildcard.class", 6),
-      ("scala/xml/parsing/FactoryAdapter.class", 6),
-    ),
-    actual
-  )
-}
+
+val catsValue = Seq(
+  ("cats/EvalInstances$$anon$10.class", 7),
+  ("cats/EvalInstances0$$anon$11.class", 7),
+  ("cats/Later.class", 7),
+  ("cats/data/ContT$DeferCont.class", 7),
+  ("cats/data/IorInstances$$anon$6.class", 7),
+  ("cats/data/IorTInstances$$anon$5.class", 7),
+  ("cats/data/IorTInstances$$anon$9.class", 7),
+  ("cats/data/IorTInstances1$$anon$17.class", 7),
+  ("cats/data/RepresentableStore.class", 14),
+  ("cats/instances/EqInstances$$anon$3$Deferred.class", 7),
+  ("cats/instances/EquivInstances$$anon$5$Deferred.class", 7),
+  ("cats/instances/FunctionInstancesBinCompat0$$anon$1$Deferred.class", 7),
+  ("cats/instances/FunctionInstancesBinCompat0$$anon$3$Deferred.class", 7),
+  ("cats/instances/HashInstances$$anon$2$Deferred.class", 7),
+  ("cats/instances/OrderInstances$$anon$3$Deferred.class", 7),
+  ("cats/instances/OrderingInstances$$anon$3$Deferred.class", 7),
+  ("cats/instances/PartialOrderInstances$$anon$3$Deferred.class", 7),
+  ("cats/instances/PartialOrderingInstances$$anon$4$Deferred.class", 7),
+  ("cats/instances/ShowInstances$$anon$1$Deferred.class", 7),
+)
+
+val scalatestCoreValue = Seq(
+  ("org/scalatest/Assertions$.class", 5),
+  ("org/scalatest/Assertions.class", 1),
+  ("org/scalatest/AsyncSuperEngine.class", 11),
+  ("org/scalatest/ConfigMapWrapperSuite.class", 11),
+  ("org/scalatest/DeferredAbortedSuite.class", 6),
+  ("org/scalatest/DispatchReporter.class", 6),
+  ("org/scalatest/DocSpec.class", 16),
+  ("org/scalatest/NonImplicitAssertions$.class", 5),
+  ("org/scalatest/NonImplicitAssertions.class", 1),
+  ("org/scalatest/PrivateMethodTester$.class", 5),
+  ("org/scalatest/PrivateMethodTester.class", 1),
+  ("org/scalatest/Resources$.class", 6),
+  ("org/scalatest/Sequential.class", 6),
+  ("org/scalatest/ShellImpl.class", 46),
+  ("org/scalatest/Stepwise.class", 6),
+  ("org/scalatest/Suites.class", 6),
+  ("org/scalatest/SuperEngine.class", 11),
+  ("org/scalatest/concurrent/AbstractPatienceConfiguration$.class", 5),
+  ("org/scalatest/concurrent/AbstractPatienceConfiguration.class", 1),
+  ("org/scalatest/concurrent/Conductors$Conductor.class", 16),
+  ("org/scalatest/concurrent/Eventually$.class", 5),
+  ("org/scalatest/concurrent/Eventually.class", 1),
+  ("org/scalatest/concurrent/Futures$.class", 5),
+  ("org/scalatest/concurrent/Futures.class", 1),
+  ("org/scalatest/concurrent/ScalaFutures$.class", 5),
+  ("org/scalatest/concurrent/ScalaFutures.class", 1),
+  ("org/scalatest/concurrent/Waiters$.class", 10),
+  ("org/scalatest/concurrent/Waiters.class", 1),
+  ("org/scalatest/events/Event.class", 11),
+  ("org/scalatest/exceptions/StackDepthException.class", 21),
+  ("org/scalatest/package$.class", 46),
+  ("org/scalatest/prop/Configuration$.class", 40),
+  ("org/scalatest/prop/Configuration$Parameter.class", 6),
+  ("org/scalatest/prop/Configuration.class", 1),
+  ("org/scalatest/prop/TableDrivenPropertyChecks$.class", 5),
+  ("org/scalatest/prop/TableDrivenPropertyChecks.class", 1),
+  ("org/scalatest/prop/Tables$.class", 5),
+  ("org/scalatest/prop/Tables.class", 1),
+  ("org/scalatest/time/Span.class", 16),
+  ("org/scalatest/tools/DashboardReporter$TestRecord.class", 6),
+  ("org/scalatest/tools/DiscoverySuite.class", 6),
+  ("org/scalatest/tools/DistributedTestRunnerSuite.class", 6),
+  ("org/scalatest/tools/Framework$ScalaTestTask.class", 21),
+  ("org/scalatest/tools/Framework$Skeleton$1.class", 11),
+  ("org/scalatest/tools/IconEmbellishedListCellRenderer.class", 6),
+  ("org/scalatest/tools/JUnitXmlReporter.class", 6),
+  ("org/scalatest/tools/PrettyPrinter.class", 6),
+  ("org/scalatest/tools/ScalaTestFramework.class", 6),
+  ("org/scalatest/tools/SuiteParam.class", 6),
+)
+
+val scalacticValue = Seq(
+  ("org/scalactic/AndBool.class", 11),
+  ("org/scalactic/BinaryMacroBool.class", 11),
+  ("org/scalactic/ExistsMacroBool.class", 6),
+  ("org/scalactic/IsInstanceOfMacroBool.class", 6),
+  ("org/scalactic/LengthSizeMacroBool.class", 6),
+  ("org/scalactic/NotBool.class", 6),
+  ("org/scalactic/OrBool.class", 11),
+  ("org/scalactic/Resources$.class", 6),
+  ("org/scalactic/SimpleBool.class", 6),
+  ("org/scalactic/SimpleMacroBool.class", 6),
+  ("org/scalactic/UnaryMacroBool.class", 6),
+  ("org/scalactic/source/ObjectMeta$$anon$1.class", 11),
+  ("org/scalactic/source/Position$.class", 5),
+  ("org/scalactic/source/Position.class", 1),
+)
+
+val scalaXmlValue = Seq(
+  ("scala/xml/PrettyPrinter.class", 6),
+  ("scala/xml/XML$$anon$1.class", 6),
+  ("scala/xml/XML$.class", 6),
+  ("scala/xml/dtd/DFAContentModel.class", 6),
+  ("scala/xml/dtd/impl/Base$Eps$.class", 6),
+  ("scala/xml/dtd/impl/Base$Star.class", 6),
+  ("scala/xml/dtd/impl/Base.class", 16),
+  ("scala/xml/dtd/impl/WordExp$Letter.class", 6),
+  ("scala/xml/dtd/impl/WordExp$Wildcard.class", 6),
+  ("scala/xml/parsing/FactoryAdapter.class", 6),
+)
+
+val scoptValue = Seq(
+  ("scopt/OParser$.class", 10),
+  ("scopt/OParser.class", 1),
+  ("scopt/OptionParser.class", 6)
+)
