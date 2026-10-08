@@ -68,7 +68,10 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
         .map { case (_, v) => v.head }
         .toSeq
         .flatMap { case (moduleId, path, lib) =>
-          if ((moduleId.organization == scalaOrganization.value) && (moduleId.name == "scala-library")) {
+          if (!path.isFile) {
+            println(s"${path} is not file. ${moduleId}")
+            Nil
+          } else if ((moduleId.organization == scalaOrganization.value) && (moduleId.name == "scala-library")) {
             Nil
           } else {
             val directUnsafe = sunMiscUnsafeLazyValDetectDirectUnsafe.value
