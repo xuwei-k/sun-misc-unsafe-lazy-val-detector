@@ -12,12 +12,14 @@ import sbt.plugins.JvmPlugin
 import sbt.util.CacheImplicits.{*, given}
 import sbtcompat.PluginCompat
 import scala.util.Using
+import scala.util.control.NonFatal
 import sjsonnew.Builder
 import sjsonnew.JsonFormat
 import sjsonnew.Unbuilder
 
 object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyValDetectorCompat {
   object autoImport {
+    val sunMiscUnsafeLazyValDetectOnError = settingKey[OnError]("")
     val sunMiscUnsafeLazyValDetect = taskKey[Seq[SunMiscUnsafeLazyValValue]]("")
     val sunMiscUnsafeLazyValDetectAll = taskKey[Seq[SunMiscUnsafeLazyValValue]]("")
     val sunMiscUnsafeLazyValDetectAllExternalDependencies = taskKey[Seq[Classpath]]("").withRank(KeyRanks.Invisible)
@@ -40,18 +42,26 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
 
   private val defaultLogLevel = Level.Info
 
-  private implicit val logLevelInstance: JsonFormat[Level.Value] = {
-    val int = implicitly[JsonFormat[Int]]
-    new JsonFormat[Level.Value] {
-      override def read[J](jsOpt: Option[J], unbuilder: Unbuilder[J]): Level.Value = {
-        val n = int.read(jsOpt, unbuilder)
-        Level.values.find(_.id == n).getOrElse(defaultLogLevel)
+  private[sun_misc_unsafe_lazy_val_detector] def bimapJsonFormat[A, B](
+    x: JsonFormat[A],
+    f: A => B,
+    g: B => A
+  ): JsonFormat[B] =
+    new JsonFormat[B] {
+      override def read[J](jsOpt: Option[J], unbuilder: Unbuilder[J]): B = {
+        f(x.read(jsOpt, unbuilder))
       }
 
-      override def write[J](obj: Level.Value, builder: Builder[J]): Unit =
-        int.write(obj.id, builder)
+      override def write[J](obj: B, builder: Builder[J]): Unit =
+        x.write(g(obj), builder)
     }
-  }
+
+  private implicit val logLevelInstance: JsonFormat[Level.Value] =
+    bimapJsonFormat[Int, Level.Value](
+      implicitly[JsonFormat[Int]],
+      n => Level.values.find(_.id == n).getOrElse(defaultLogLevel),
+      _.id
+    )
 
   override val buildSettings: Seq[Def.Setting[?]] = Def.settings(
     sunMiscUnsafeLazyValDetectClearCache := {
@@ -71,9 +81,12 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
         .join
     }.value,
     sunMiscUnsafeLazyValDetectAll / logLevel := defaultLogLevel,
+    sunMiscUnsafeLazyValDetectOnError := OnError.Default,
     sunMiscUnsafeLazyValDetectAll := {
       implicit val converter: xsbti.FileConverter = fileConverter.value
-      sunMiscUnsafeLazyValDetectAllExternalDependencies.value.flatten.distinct.flatMap { lib =>
+      val onError = sunMiscUnsafeLazyValDetectOnError.value
+      var error: Throwable = null
+      val result = sunMiscUnsafeLazyValDetectAllExternalDependencies.value.flatten.distinct.flatMap { lib =>
         val path = PluginCompat.toFile(lib)
         lib
           .get(PluginCompat.moduleIDStr)
@@ -101,7 +114,31 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
                 if (log.id <= Level.Info.id) {
                   println(s"[SunMiscUnsafeLazyValDetector] parse ${path}")
                 }
-                oldLazyValAndUnsafe(path, directUnsafe)
+                try {
+                  oldLazyValAndUnsafe(path, directUnsafe)
+                } catch {
+                  case NonFatal(e) =>
+                    println(s"$path $e")
+                    onError match {
+                      case OnError.Default =>
+                        log match {
+                          case Level.Debug =>
+                            e.printStackTrace()
+                          case _ =>
+                        }
+                        error = e
+                        Nil
+                      case OnError.Ignore =>
+                        log match {
+                          case Level.Debug =>
+                            e.printStackTrace()
+                          case _ =>
+                        }
+                        Nil
+                      case OnError.FailFast =>
+                        throw e
+                    }
+                }
               }
             )
             if (lazyVals.nonEmpty) {
@@ -120,6 +157,12 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
           }
         }
         .sorted
+
+      if (error == null) {
+        result
+      } else {
+        throw error
+      }
     },
     sunMiscUnsafeLazyValDetectAllPrint := printValues(sunMiscUnsafeLazyValDetectAll).value,
   )
