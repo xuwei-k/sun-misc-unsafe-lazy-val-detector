@@ -3,9 +3,7 @@ package sun_misc_unsafe_lazy_val_detector
 import sbt.util.CacheImplicits.*
 import sjsonnew.JsonFormat
 
-sealed abstract class OnError(private[sun_misc_unsafe_lazy_val_detector] val value: Int)
-    extends Product
-    with Serializable
+sealed abstract class OnError(private val value: Int) extends Product with Serializable
 
 object OnError {
   case object Default extends OnError(0)
