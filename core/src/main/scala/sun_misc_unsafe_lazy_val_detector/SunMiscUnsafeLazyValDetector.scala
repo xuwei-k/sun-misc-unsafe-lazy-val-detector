@@ -12,6 +12,9 @@ import sbt.plugins.JvmPlugin
 import sbt.util.CacheImplicits.{*, given}
 import sbtcompat.PluginCompat
 import scala.util.Using
+import sjsonnew.Builder
+import sjsonnew.JsonFormat
+import sjsonnew.Unbuilder
 
 object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyValDetectorCompat {
   object autoImport {
@@ -35,6 +38,21 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
 
   private val allConfig: Seq[Configuration] = Seq(Compile, Test, Runtime)
 
+  private val defaultLogLevel = Level.Info
+
+  private implicit val logLevelInstance: JsonFormat[Level.Value] = {
+    val int = implicitly[JsonFormat[Int]]
+    new JsonFormat[Level.Value] {
+      override def read[J](jsOpt: Option[J], unbuilder: Unbuilder[J]): Level.Value = {
+        val n = int.read(jsOpt, unbuilder)
+        Level.values.find(_.id == n).getOrElse(defaultLogLevel)
+      }
+
+      override def write[J](obj: Level.Value, builder: Builder[J]): Unit =
+        int.write(obj.id, builder)
+    }
+  }
+
   override val buildSettings: Seq[Def.Setting[?]] = Def.settings(
     sunMiscUnsafeLazyValDetectClearCache := {
       val size = cache.cache.size
@@ -52,6 +70,7 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
         }
         .join
     }.value,
+    sunMiscUnsafeLazyValDetectAll / logLevel := defaultLogLevel,
     sunMiscUnsafeLazyValDetectAll := {
       implicit val converter: xsbti.FileConverter = fileConverter.value
       sunMiscUnsafeLazyValDetectAllExternalDependencies.value.flatten.distinct.flatMap { lib =>
@@ -74,10 +93,16 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
           } else if ((moduleId.organization == scalaOrganization.value) && (moduleId.name == "scala-library")) {
             Nil
           } else {
+            val log = (sunMiscUnsafeLazyValDetectAll / logLevel).value
             val directUnsafe = sunMiscUnsafeLazyValDetectDirectUnsafe.value
             val lazyVals = getOrElseUpdateCache(
               SunMiscUnsafeLazyValDetectorCache.Key(lib, directUnsafe),
-              () => oldLazyValAndUnsafe(path, directUnsafe)
+              () => {
+                if (log.id <= Level.Info.id) {
+                  println(s"[SunMiscUnsafeLazyValDetector] parse ${path}")
+                }
+                oldLazyValAndUnsafe(path, directUnsafe)
+              }
             )
             if (lazyVals.nonEmpty) {
               Seq(
