@@ -1,6 +1,8 @@
 package sun_misc_unsafe_lazy_val_detector
 
 import java.io.FileInputStream
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.MethodVisitor
@@ -86,7 +88,7 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
       implicit val converter: xsbti.FileConverter = fileConverter.value
       val onError = sunMiscUnsafeLazyValDetectOnError.value
       var error: Throwable = null
-      val result = sunMiscUnsafeLazyValDetectAllExternalDependencies.value.flatten.distinct.flatMap { lib =>
+      val libs = sunMiscUnsafeLazyValDetectAllExternalDependencies.value.flatten.distinct.flatMap { lib =>
         val path = PluginCompat.toFile(lib)
         lib
           .get(PluginCompat.moduleIDStr)
@@ -99,64 +101,71 @@ object SunMiscUnsafeLazyValDetector extends AutoPlugin with SunMiscUnsafeLazyVal
       }.groupBy(_._1)
         .map { case (_, v) => v.head }
         .toSeq
-        .flatMap { case (moduleId, path, lib) =>
+        .filter { case (moduleId, path, _) =>
           if (!path.isFile) {
             println(s"${path} is not file. ${moduleId}")
-            Nil
+            false
           } else if ((moduleId.organization == scalaOrganization.value) && (moduleId.name == "scala-library")) {
-            Nil
+            false
           } else {
-            val log = (sunMiscUnsafeLazyValDetectAll / logLevel).value
-            val directUnsafe = sunMiscUnsafeLazyValDetectDirectUnsafe.value
-            val lazyVals = getOrElseUpdateCache(
-              SunMiscUnsafeLazyValDetectorCache.Key(lib, directUnsafe),
-              () => {
-                if (log.id <= Level.Info.id) {
-                  println(s"[SunMiscUnsafeLazyValDetector] parse ${path}")
-                }
-                try {
-                  oldLazyValAndUnsafe(path, directUnsafe)
-                } catch {
-                  case NonFatal(e) =>
-                    println(s"$path $e")
-                    onError match {
-                      case OnError.Default =>
-                        log match {
-                          case Level.Debug =>
-                            e.printStackTrace()
-                          case _ =>
-                        }
-                        error = e
-                        Nil
-                      case OnError.Ignore =>
-                        log match {
-                          case Level.Debug =>
-                            e.printStackTrace()
-                          case _ =>
-                        }
-                        Nil
-                      case OnError.FailFast =>
-                        throw e
-                    }
-                }
-              }
-            )
-            if (lazyVals.nonEmpty) {
-              Seq(
-                SunMiscUnsafeLazyValValue(
-                  moduleId.organization,
-                  moduleId.name,
-                  moduleId.revision,
-                  lib,
-                  lazyVals,
-                )
-              )
-            } else {
-              Nil
-            }
+            true
           }
         }
-        .sorted
+        .sortBy(x => (x._1.organization, x._1.name, x._1.revision))
+
+      val count = libs.size
+
+      val result = libs.zipWithIndex.flatMap { case ((moduleId, path, lib), index) =>
+        val log = (sunMiscUnsafeLazyValDetectAll / logLevel).value
+        val directUnsafe = sunMiscUnsafeLazyValDetectDirectUnsafe.value
+        val lazyVals = getOrElseUpdateCache(
+          SunMiscUnsafeLazyValDetectorCache.Key(lib, directUnsafe),
+          () => {
+            if (log.id <= Level.Info.id) {
+              val time = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSZ").format(ZonedDateTime.now())
+              println(s"[SunMiscUnsafeLazyValDetector] ${time} parse ${path} (${index + 1}/${count})")
+            }
+            try {
+              oldLazyValAndUnsafe(path, directUnsafe)
+            } catch {
+              case NonFatal(e) =>
+                println(s"$path $e")
+                onError match {
+                  case OnError.Default =>
+                    log match {
+                      case Level.Debug =>
+                        e.printStackTrace()
+                      case _ =>
+                    }
+                    error = e
+                    Nil
+                  case OnError.Ignore =>
+                    log match {
+                      case Level.Debug =>
+                        e.printStackTrace()
+                      case _ =>
+                    }
+                    Nil
+                  case OnError.FailFast =>
+                    throw e
+                }
+            }
+          }
+        )
+        if (lazyVals.nonEmpty) {
+          Seq(
+            SunMiscUnsafeLazyValValue(
+              moduleId.organization,
+              moduleId.name,
+              moduleId.revision,
+              lib,
+              lazyVals,
+            )
+          )
+        } else {
+          Nil
+        }
+      }.sorted
 
       if (error == null) {
         result
